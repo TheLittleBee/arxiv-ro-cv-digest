@@ -3,8 +3,8 @@
 
 Usage (from the project root):
     python src/main.py fetch
-    python src/main.py filter
-    python src/main.py summarize
+    python src/main.py analyze
+    python src/main.py build
     python src/main.py all
 """
 
@@ -18,9 +18,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import config
 from arxiv_fetcher import fetch_papers
-from medical_filter import load_papers, save_filtered, get_filtered_papers
-from summarizer import load_filtered_papers, save_summaries, get_summaries
-from digest_writer import load_summaries, write_digest
+from filter import load_papers, save_summaries, get_summaries as load_summaries
+from digest_writer import write_digest
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,34 +60,19 @@ def cmd_fetch(_args):
 
 
 # ------------------------------------------------------------------
-# filter
+# analyze (filter + summarize + classify via LLM subagent)
 # ------------------------------------------------------------------
 
 
-def cmd_filter(_args):
-    """Load papers and save to filtered.json (filtering done by agent)."""
+def cmd_analyze(_args):
+    """Prepare for LLM analysis (filter + summarize + classify)."""
     config.ensure_dirs()
     papers = load_papers()
-    save_filtered(papers)
-    print(f"\n{'=' * 60}")
-    print(f"Loaded {len(papers)} papers from data/papers.json")
-    print("Use LLM subagents to filter medical papers -> data/filtered.json")
-    print(f"{'=' * 60}")
-
-
-# ------------------------------------------------------------------
-# summarize
-# ------------------------------------------------------------------
-
-
-def cmd_summarize(_args):
-    """Load filtered papers and save summaries (summarization done by agent)."""
-    config.ensure_dirs()
-    papers = get_filtered_papers()
     save_summaries(papers)
     print(f"\n{'=' * 60}")
-    print(f"Loaded {len(papers)} papers from data/filtered.json")
-    print("Use LLM subagents to generate summaries -> data/summaries.json")
+    print(f"Loaded {len(papers)} papers from data/papers.json")
+    print("Use LLM subagents to analyze papers -> data/summaries.json")
+    print("After analysis, run: python src/main.py build")
     print(f"{'=' * 60}")
 
 
@@ -113,7 +97,7 @@ def cmd_build(_args):
 
 
 def cmd_all(_args):
-    """Run fetch + filter + summarize + build."""
+    """Run fetch + analyze + build."""
     config.ensure_dirs()
 
     print("\n=== Step 1: Fetch ===")
@@ -123,26 +107,12 @@ def cmd_all(_args):
         json.dump(papers, fh, indent=2, ensure_ascii=False)
     print(f"Fetched {len(papers)} papers")
 
-    print("\n=== Step 2: Filter ===")
-    print("Use LLM subagents to filter medical papers -> data/filtered.json")
-    print("Then run: python src/main.py filter-exec")
+    print("\n=== Step 2: Analyze ===")
+    print("Use LLM subagents to analyze papers -> data/summaries.json")
+    print("After analysis, run: python src/main.py build")
 
-    print("\n=== Step 3: Summarize ===")
-    print("Use LLM subagents to summarize -> data/summaries.json")
-    print("Then run: python src/main.py build")
-
-
-# ------------------------------------------------------------------
-# filter-exec (execute filtered data)
-# ------------------------------------------------------------------
-
-
-def cmd_filter_exec(_args):
-    """Execute filtering based on data/filtered.json from agent."""
-    papers = get_filtered_papers()
-    print(f"\n{'=' * 60}")
-    print(f"Using {len(papers)} filtered papers")
-    print(f"{'=' * 60}")
+    print("\n=== Step 3: Build ===")
+    print("Run: python src/main.py build")
 
 
 # ------------------------------------------------------------------
@@ -156,26 +126,18 @@ def main():
 
     sub.add_parser("fetch", help="Fetch today's papers from arXiv")
 
-    sub.add_parser("filter", help="Prepare for filtering (agent step)")
-
-    sub.add_parser("filter-exec", help="Execute with filtered data")
-
-    sub.add_parser("summarize", help="Prepare for summarization (agent step)")
+    sub.add_parser("analyze", help="Prepare for LLM analysis (filter + summarize)")
 
     sub.add_parser("build", help="Generate markdown digest from summaries")
 
-    sub.add_parser("all", help="Run full pipeline (fetch + filter + summarize + build)")
+    sub.add_parser("all", help="Run full pipeline (fetch + analyze + build)")
 
     args = parser.parse_args()
 
     if args.command == "fetch":
         cmd_fetch(args)
-    elif args.command == "filter":
-        cmd_filter(args)
-    elif args.command == "filter-exec":
-        cmd_filter_exec(args)
-    elif args.command == "summarize":
-        cmd_summarize(args)
+    elif args.command == "analyze":
+        cmd_analyze(args)
     elif args.command == "build":
         cmd_build(args)
     elif args.command == "all":

@@ -8,24 +8,16 @@ from typing import Optional
 import config
 
 
-def load_summaries() -> list:
-    """Load summaries from data/summaries.json."""
-    summaries_path = config.DATA_DIR / "summaries.json"
-    with open(summaries_path, encoding="utf-8") as fh:
-        return json.load(fh)
-
-
 def group_by_topic(summaries: list) -> dict:
-    """Group papers by topic. A paper can appear under multiple topics."""
+    """Group non-filtered papers by topic. Each paper has exactly one topic."""
     groups = {}
     for s in summaries:
-        topics = s.get("topics", [])
-        if not topics:
-            topics = ["Other"]
-        for topic in topics:
-            if topic not in groups:
-                groups[topic] = []
-            groups[topic].append(s)
+        if s.get("is_filtered", False):
+            continue
+        topic = s.get("topic", "Other")
+        if topic not in groups:
+            groups[topic] = []
+        groups[topic].append(s)
     return groups
 
 
@@ -45,16 +37,15 @@ def write_digest(
     groups = group_by_topic(summaries)
 
     topic_order = [
-        "VLM (Vision-Language Models)",
-        "VLA (Vision-Language-Action)",
         "Gaussian Splatting",
-        "Spatial Intelligence",
-        "Manipulation",
-        "Autonomous Driving",
         "3D Reconstruction",
-        "Video Understanding",
-        "Embodied AI",
-        "Navigation",
+        "World Model",
+        "Spatial Intelligence",
+        "Diffusion/Flow Match",
+        "VLA/VLM",
+        "Manipulation",
+        "Robotic",
+        "Autonomous",
         "Other",
     ]
     topic_set = set(topic_order)
@@ -67,11 +58,13 @@ def write_digest(
     sorted_topics = sorted(groups.keys(), key=topic_sort_key)
 
     total_papers = sum(len(papers) for papers in groups.values())
+    filtered_count = sum(1 for s in summaries if s.get("is_filtered", False))
 
     lines = [
         f"# arXiv RO-CV Digest — {date_str}",
         "",
-        f"**{total_papers} paper(s) found across {len(groups)} topic(s).**",
+        f"**{total_papers} paper(s) found across {len(groups)} topic(s). "
+        f"{filtered_count} paper(s) filtered out.**",
         "",
     ]
 
@@ -101,10 +94,6 @@ def write_digest(
             category = paper.get("primary_category", "")
             if category:
                 lines.append(f"- **Category**: {category}")
-
-            topics = paper.get("topics", [])
-            if topics:
-                lines.append(f"- **Topics**: {', '.join(topics)}")
 
             lines.append("")
 
